@@ -6,6 +6,7 @@ import time
 import musicbrainzngs
 import os
 import json
+import requests # 🔹 새로 추가된 라이브러리
 
 # ==========================================
 # 0. 설정 (API, 파일 경로 등)
@@ -140,16 +141,58 @@ def get_musicbrainz_genres(artist, title):
         return []
     except Exception: return []
 
+@st.cache_data
+def get_musicbrainz_cover_url(artist, title):
+    try:
+        def norm(s): return s.lower().strip() if isinstance(s, str) else ""
+        target_title, target_artist = norm(title), norm(artist)
+
+        result = musicbrainzngs.search_releases(artist=artist, release=title, limit=15)
+        releases = result.get("release-list", [])
+        if not releases: return "https://via.placeholder.com/150"
+
+        def score_release(rel):
+            score = 0
+            rtitle = norm(rel.get("title", ""))
+            if rtitle == target_title: score += 5
+            elif target_title in rtitle or rtitle in target_title: score += 3
+            ac_list = rel.get("artist-credit", [])
+            names = [norm(ac["artist"].get("name", "")) if isinstance(ac, dict) and "artist" in ac else norm(ac) for ac in ac_list]
+            if any(n == target_artist for n in names): score += 4
+            elif any(target_artist in n or n in target_artist for n in names): score += 2
+            return score
+        releases_sorted = sorted(releases, key=score_release, reverse=True)
+
+        for rel in releases_sorted: # Iterate through sorted releases to prioritize better matches
+            mbid = rel["id"]
+            try:
+                caa_url = f"http://coverartarchive.org/release/{mbid}/front"
+                response = requests.head(caa_url, allow_redirects=True, timeout=5)
+                if response.status_code == 200 and response.headers.get('Content-Type', '').startswith('image'):
+                    return caa_url
+            except requests.exceptions.RequestException:
+                pass
+            except Exception:
+                pass
+
+        return "https://via.placeholder.com/150"
+    except Exception:
+        return "https://via.placeholder.com/150"
+
 
 def get_album_data(sp, album_info):
-    spotify_url, image_url = "https://open.spotify.com/", "https://via.placeholder.com/150"
+    spotify_url = "https://open.spotify.com/" # Spotify URL still needed for link button
+    image_url = get_musicbrainz_cover_url(album_info["artist"], album_info["title"]) # 🔹 MusicBrainz에서 커버 가져오기
+
+    # Spotify URL은 여전히 필요할 수 있으므로 검색 시도
     try:
         query = f"artist:{album_info['artist']} album:{album_info['title']}"
         results = sp.search(q=query, type='album', limit=1)
         if results['albums']['items']:
             item = results['albums']['items'][0]
-            spotify_url, image_url = item['external_urls']['spotify'], item['images'][0]['url'] if item['images'] else image_url
+            spotify_url = item['external_urls']['spotify']
     except Exception: pass
+
     mb_genres = get_musicbrainz_genres(album_info["artist"], album_info["title"])
     if album_info['title'] in MANUAL_FEATURES:
         data = MANUAL_FEATURES[album_info['title']]
@@ -175,8 +218,10 @@ def render_main_page(sp):
 
     # --- 추천 로직 ---
     if st.sidebar.button("🎵 앨범 추천받기", type="primary"):
-        if not sp:
-            st.error("스포티파이 인증에 실패했습니다. 페이지를 새로고침하거나 캐시를 삭제해보세요."); return
+        # Spotify 클라이언트가 없어도 MusicBrainz 커버는 가져올 수 있음
+        # 하지만 Spotify 링크 버튼을 위해 sp가 필요할 수 있음
+        # if not sp:
+        #     st.error("스포티파이 인증에 실패했습니다. 페이지를 새로고침하거나 캐시를 삭제해보세요."); return
         
         user_state = {"tempo": tempo, "energy": energy, "brightness": brightness, "length": length}
         
@@ -185,19 +230,23 @@ def render_main_page(sp):
             all_albums = []
             # 기본 앨범
             for info in ALBUMS:
-                data = get_album_data(sp, info)
+                data = get_album_data(sp, info) # sp는 Spotify URL을 위해 여전히 필요
                 if data: all_albums.append(data)
             # 사용자 추가 앨범
             custom_albums = load_custom_albums()
             for album in custom_albums:
-                spotify_url, image_url = "https://open.spotify.com/", "https://via.placeholder.com/150"
+                spotify_url = "https://open.spotify.com/" # Spotify URL still needed for link button
+                image_url = get_musicbrainz_cover_url(album['artist'], album['title']) # 🔹 MusicBrainz에서 커버 가져오기
+                
+                # Spotify URL은 여전히 필요할 수 있으므로 검색 시도
                 try:
                     query = f"artist:{album['artist']} album:{album['title']}"
                     results = sp.search(q=query, type='album', limit=1)
                     if results['albums']['items']:
                         item = results['albums']['items'][0]
-                        spotify_url, image_url = item['external_urls']['spotify'], item['images'][0]['url'] if item['images'] else image_url
+                        spotify_url = item['external_urls']['spotify']
                 except: pass
+
                 all_albums.append({**album, **album['features'], "spotify_url": spotify_url, "image_url": image_url})
 
             # 2) 점수 계산 + 필터링
