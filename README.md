@@ -32,9 +32,10 @@
 
 ### 2. 프로젝트 실행
 
-1.  **프로젝트 폴더로 이동**: 터미널에서 `MRA` 폴더로 이동합니다.
+1.  **프로젝트 폴더로 이동**: 터미널에서 이 저장소(repository)를 복제(clone)하거나 다운로드한 폴더로 이동합니다.
     ```bash
-    cd /Users/izo/Desktop/MRA/
+    # 예: 저장소 이름이 'music-app'이라면 cd music-app 과 같이 이동합니다.
+    cd /path/to/your-project-folder
     ```
 
 2.  **가상 환경 생성 및 패키지 설치 (최초 1회)**
