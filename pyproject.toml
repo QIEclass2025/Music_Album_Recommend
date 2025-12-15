@@ -1,12 +1,11 @@
 [project]
-name = "music-app"
+name = "fin-music-app"
 version = "0.1.0"
 description = "A music recommendation app built with Streamlit."
 dependencies = [
     "streamlit",
     "spotipy",
     "musicbrainzngs",
-    "blinker",
 ]
 requires-python = ">=3.8"
 
