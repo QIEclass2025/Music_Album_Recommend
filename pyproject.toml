@@ -1,15 +1,12 @@
 [project]
-name = "music-app"
+name = "uriak-wboloix"
 version = "0.1.0"
-description = "A music recommendation app built with Streamlit."
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
 dependencies = [
-    "streamlit",
-    "spotipy",
-    "musicbrainzngs",
-    "blinker",
+    "google-generativeai>=0.8.5",
+    "musicbrainzngs>=0.7.1",
+    "spotipy>=2.25.2",
+    "streamlit>=1.52.1",
 ]
-requires-python = ">=3.8"
-
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
