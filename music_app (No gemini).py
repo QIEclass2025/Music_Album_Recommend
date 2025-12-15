@@ -1,18 +1,5 @@
 # music_app.py
 import streamlit as st
-import subprocess
-import sys
-
-# [자동 설치 코드] google-generativeai가 없으면 자동으로 설치합니다.
-try:
-    import google.generativeai as genai
-except ImportError:
-    st.warning("필수 라이브러리(google-generativeai)를 설치하고 있습니다... 잠시만 기다려주세요.")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "google-generativeai"])
-    import google.generativeai as genai
-    st.success("설치 완료! 다시 실행됩니다.")
-    st.rerun()
-
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import time
@@ -21,7 +8,6 @@ import os
 import json
 import concurrent.futures
 import random
-import traceback
 
 # ==========================================
 # 0. 설정 (API, 파일 경로 등)
@@ -32,23 +18,16 @@ musicbrainzngs.set_useragent(
     "MusicRecommenderDemo", "0.1", "https://example.com"
 )
 
-# -------------------------------------------------------------------------
-# [중요] 여기에 API 키를 직접 입력하세요!
-# -------------------------------------------------------------------------
-# Spotify Keys
 client_id = "490b45532df54ef0847e810393d06a51"
 client_secret = "ab2b99ec8c2a4e10a7192809b3bb539c"
-
-# Gemini API Key (여기에 복사한 키를 붙여넣으세요)
-gemini_api_key = "AIzaSyDtJdB1uY7cCxfMtaVkjahQRCqK9KS5XI0" 
-# -------------------------------------------------------------------------
-
 REDIRECT_URI = "http://127.0.0.1:8888"
 SCOPE = "user-read-private user-read-email"
 
 # ==========================================
 # 1. 콘텐츠 데이터 (상식 & 퀴즈)
 # ==========================================
+
+# 1-1. 음악 상식 리스트
 TRIVIA_LIST = [
     "비틀즈의 'Yesterday'는 폴 매카트니가 꿈속에서 멜로디를 듣고 작곡했습니다.",
     "모차르트는 5살 때 첫 작곡을 했고, 6살 때 첫 연주 여행을 다녔습니다.",
@@ -59,35 +38,109 @@ TRIVIA_LIST = [
     "가장 긴 피아노 공연 기록은 27시간이 아니라, 독일의 피아니스트가 세운 '52시간'입니다.",
     "우리의 심장 박동수는 듣고 있는 음악의 템포(BPM)에 맞춰 동기화되는 경향이 있습니다.",
     "악보를 전혀 볼 줄 모르는 거장들도 많습니다 (예: 지미 헨드릭스, 에릭 클랩튼, 마이클 잭슨).",
-    "유튜브 최초의 10억 조회수 뮤직비디오는 싸이의 '강남스타일'입니다."
+    "유튜브 최초의 10억 조회수 뮤직비디오는 싸이의 '강남스타일'입니다.",
+    "피아노 건반은 과거에 코끼리 상아로 만들었으나, 현재는 동물 보호를 위해 플라스틱이나 합성 재료를 씁니다.",
+    "바이올린 활은 보통 말의 꼬리털(말총)로 만들며, 송진을 발라 마찰력을 높입니다.",
+    "성악에서 사람의 목소리는 가장 정교하고 아름다운 악기로 취급됩니다.",
+    "레코드판(LP)은 바깥쪽에서 시작해 안쪽으로 가면서 재생됩니다.",
+    "좋아하는 음악을 들으면 뇌에서 도파민(행복 호르몬)이 분비되어 기분이 좋아집니다.",
+    "세계에서 가장 큰 악기는 미국 버지니아주 루레이 동굴에 있는 '종유석 오르간'입니다.",
+    "개는 인간보다 청력이 발달해 높은 주파수 음역대를 들을 수 있어, 음악에 다르게 반응할 수 있습니다.",
+    "베토벤은 청력을 완전히 잃은 후에도 피아노 진동을 몸으로 느끼며 작곡을 계속했습니다.",
+    "과거 기타 줄은 양의 창자(거트)를 꼬아서 만들었습니다.",
+    "K-Pop 아이돌의 '칼군무'와 '응원법'은 해외 팬들에게 매우 신선한 충격을 주는 문화입니다.",
+    "스트라디바리우스 바이올린은 수백억 원을 호가하며, 그 음색의 비밀은 아직 완전히 밝혀지지 않았습니다.",
+    "메탈리카는 2013년 남극에서 콘서트를 열어, 1년 안에 7개 대륙 모두에서 공연한 밴드가 되었습니다.",
+    "우주비행사 크리스 해드필드는 국제우주정거장(ISS) 무중력 상태에서 기타를 치며 노래했습니다.",
+    "가수들이 음정을 보정할 때 쓰는 '오토튠' 기술은 원래 지질학자가 석유 매장지를 탐사하는 데이터 분석법에서 유래했습니다.",
+    "다빈치의 '모나리자' 배경 속에 숨겨진 악보가 있다는 미스터리한 주장이 제기된 적이 있습니다.",
+    "영화 해리포터의 신비로운 테마곡 소리는 '첼레스타'라는 건반 악기로 연주되었습니다.",
+    "재즈(Jazz)라는 단어의 정확한 어원은 아무도 모릅니다. (Jasm, Jass 등 여러 설이 존재)",
+    "세계에서 가장 짧은 노래는 그라인드코어 밴드 Napalm Death의 'You Suffer'로, 딱 1.316초입니다.",
+    "음악 치료는 치매 환자의 잃어버린 기억을 순간적으로 되살리는 데 큰 효과가 있습니다.",
+    "고양이는 인간의 음악보다, 고양이의 주파수에 맞춘 '고양이 전용 음악'에 더 반응합니다.",
+    "방탄소년단의 팬클럽 'ARMY'는 'Adorable Representative M.C for Youth'의 약자입니다.",
+    "일렉트릭 기타의 명가 '펜더(Fender)'의 창립자 레오 펜더는 정작 기타를 칠 줄 몰랐습니다.",
+    "오케스트라가 연주 전 튜닝할 때 기준이 되는 음은 오보에가 부는 '라(A, 440Hz)'입니다.",
+    "세계 최대 음원 플랫폼 스포티파이(Spotify)는 미국이 아닌 스웨덴 기업입니다.",
+    "힙합 문화(DJ, 랩, 비보잉, 그래피티)는 1970년대 뉴욕 브롱크스 빈민가 파티에서 시작되었습니다.",
+    "한국의 가야금은 12줄, 거문고는 6줄이며 명주실을 꼬아 만듭니다.",
+    "노래방 기계(Karaoke)는 일본에서 처음 발명되었으며 '가짜(Kara) 오케스트라(Oke)'라는 뜻입니다.",
+    "머라이어 캐리의 캐럴은 매년 12월만 되면 차트 1위를 차지해 '크리스마스 연금'이라 불립니다.",
+    "음악의 3요소는 리듬(Rhythm), 멜로디(Melody), 하모니(Harmony)입니다.",
+    "지휘자가 지휘봉을 쓰는 주된 이유는 넓은 무대 끝에 있는 연주자에게도 손짓을 명확히 보여주기 위해서입니다.",
+    "프레데릭 쇼팽은 '피아노의 시인'이라는 별명을 가지고 있습니다.",
+    "바흐는 '음악의 아버지', 헨델은 '음악의 어머니'라 불리지만 둘 다 남성입니다.",
+    "세계 최초의 아이돌(팬덤형) 그룹은 영국의 비틀즈라고 보는 시각이 많습니다.",
+    "LP판의 한 면에는 여러 개의 홈이 있는 게 아니라, 사실 단 하나의 긴 나선형 홈이 이어져 있습니다.",
+    "일렉트릭 기타는 앰프(증폭기)를 끄면 줄 튕기는 소리밖에 안 들려 아주 조용합니다.",
+    "존 케이지의 '4분 33초'는 연주자가 무대에서 아무 소리도 내지 않고 4분 33초간 앉아있는 곡입니다.",
+    "오페라 가수들은 마이크를 쓰지 않고도 거대한 공연장을 울릴 수 있는 발성 훈련을 합니다.",
+    "인간이 들을 수 있는 가청 주파수는 약 20Hz에서 20,000Hz 사이입니다.",
+    "빠른 템포의 음악을 들으며 술을 마시면 평소보다 더 빨리 마시게 된다는 연구가 있습니다.",
+    "공포 영화 효과음에는 '워터폰(Waterphone)'이라는 기괴한 소리를 내는 악기가 자주 쓰입니다."
 ]
 
+# 1-2. 음악 퀴즈 리스트
 QUIZ_LIST = [
     ("방탄소년단의 데뷔곡 제목은?", "No More Dream"),
     ("피아노의 건반 개수는 총 몇 개일까요?", "88개"),
     ("비틀즈의 멤버가 아닌 사람은? (존 레논, 폴 매카트니, 엘비스 프레슬리, 링고 스타)", "엘비스 프레슬리"),
     ("음악의 아버지라 불리는 바로크 시대 작곡가는?", "바흐"),
-    ("소리가 전혀 나지 않는 존 케이지의 연주곡 제목은?", "4분 33초")
+    ("소리가 전혀 나지 않는 존 케이지의 연주곡 제목은?", "4분 33초"),
+    ("모차르트의 오페라 중 '밤의 여왕 아리아'가 나오는 작품은?", "마술피리"),
+    ("가수 아이유의 공식 팬클럽 이름은?", "유애나"),
+    ("일반적인 어쿠스틱/일렉트릭 기타의 줄 개수는?", "6개"),
+    ("영화 '보헤미안 랩소디'의 주인공인 전설적인 록 밴드는?", "Queen (퀸)"),
+    ("우리나라 최초의 창작 동요 '반달'을 지은 사람은?", "윤극영"),
+    ("다음 중 금관악기가 아닌 것은? (트럼펫, 색소폰, 호른, 튜바)", "색소폰 (색소폰은 목관악기입니다)"),
+    ("악보에서 '점점 세게'를 뜻하는 이탈리아어 용어는?", "크레센도 (Crescendo)"),
+    ("마이클 잭슨의 트레이드 마크인, 뒤로 미끄러지듯 걷는 춤은?", "문워크 (Moonwalk)"),
+    ("오케스트라 튜닝의 기준이 되는 악기는?", "오보에"),
+    ("계이름 '도(Do)'는 알파벳으로 무엇일까요?", "C"),
+    ("비발디의 바이올린 협주곡 '사계' 중 가장 유명한 계절은?", "봄"),
+    ("1969년 열린 전설적인 록 페스티벌의 이름은?", "우드스탁 페스티벌"),
+    ("한국 대중음악상(KMA)은 판매량보다 무엇을 중시하나요?", "음악성"),
+    ("걸그룹 블랙핑크의 데뷔곡이 아닌 것은? (붐바야, 휘파람, How You Like That)", "How You Like That"),
+    ("가수 싸이의 '강남스타일' 포인트 안무 이름은?", "말춤"),
+    ("뉴진스(NewJeans)의 데뷔곡 중 하나인 이 곡은? (Hype Boy, Attention, Ditto)", "Attention (또는 Hype Boy)"),
+    ("세계적인 첼리스트 요요마가 연주하는 악기는?", "첼로"),
+    ("국악기 중 줄이 12개인 악기는?", "가야금"),
+    ("국악기 중 줄이 6개이며 술대로 쳐서 소리 내는 악기는?", "거문고"),
+    ("베토벤의 교향곡 5번의 별명은?", "운명 교향곡"),
+    ("베토벤의 교향곡 9번의 별명은?", "합창 교향곡"),
+    ("쇼팽이 주로 작곡한 악기 분야는?", "피아노"),
+    ("록 밴드 너바나(Nirvana)의 리드 보컬 이름은?", "커트 코베인"),
+    ("가수 김광석의 대표곡이 아닌 것은? (서른 즈음에, 이등병의 편지, 붉은 노을)", "붉은 노을 (이문세의 곡)"),
+    ("악보에서 '도돌이표'를 만나면 어떻게 해야 할까요?", "지정된 구간을 반복한다"),
+    ("4분의 4박자에서 한 마디에 들어가는 4분 음표의 개수는?", "4개"),
+    ("다음 중 현악기가 아닌 것은? (바이올린, 비올라, 첼로, 플루트)", "플루트 (목관악기)"),
+    ("드럼 세트에서 발로 밟아 소리 내는 큰 북의 이름은?", "베이스 드럼 (킥 드럼)"),
+    ("가수 조용필의 별명은?", "가왕"),
+    ("엘비스 프레슬리의 별명은?", "로큰롤의 제왕"),
+    ("마돈나의 별명은?", "팝의 여왕"),
+    ("SM 엔터테인먼트의 설립자는?", "이수만"),
+    ("JYP 엔터테인먼트의 수장은?", "박진영"),
+    ("하이브(HYBE) 의장인 방시혁의 별명은?", "히트맨 뱅"),
+    ("뮤지컬 '오페라의 유령', '캣츠'를 만든 작곡가는?", "앤드류 로이드 웨버"),
+    ("영화 '타이타닉'의 주제곡 'My Heart Will Go On'을 부른 가수는?", "셀린 디온"),
+    ("영화 '겨울왕국'의 주제곡 'Let It Go'를 부른 캐릭터는?", "엘사"),
+    ("재즈에서 즉흥적으로 연주하는 것을 무엇이라고 할까요?", "임프로비제이션 (Improvisation) / 애드립"),
+    ("힙합 문화의 4대 요소가 아닌 것은? (MC, DJ, 비보잉, 발레)", "발레"),
+    ("우리나라의 대표적인 민요로, 유네스코 인류무형문화유산인 곡은?", "아리랑"),
+    ("판소리에서 고수가 치는 악기는?", "북"),
+    ("사물놀이 악기가 아닌 것은? (꽹과리, 징, 장구, 해금)", "해금 (사물놀이는 타악기 중심)"),
+    ("바이올린, 비올라, 첼로, 콘트라베이스 중 가장 큰 악기는?", "콘트라베이스"),
+    ("피아노의 원래 이름인 '피아노포르테'의 뜻은?", "약하고(Piano) 강하게(Forte) 연주할 수 있는 악기"),
+    ("세계 3대 테너가 아닌 사람은? (루치아노 파바로티, 플라시도 도밍고, 호세 카레라스, 안드레아 보첼리)", "안드레아 보첼리 (팝페라 가수로 분류됨)"),
+    ("다음 중 건반 악기가 아닌 것은? (피아노, 오르간, 하프시코드, 하프)", "하프 (현악기)"),
+    ("지휘자가 지휘할 때 서 있는 단상의 이름은?", "포디움")
 ]
 
-# [수정됨] NameError 방지를 위해 상단 정의
-ATTRS = ["tempo", "energy", "brightness"]
 
 # ==========================================
 # 2. 기본 데이터 (MANUAL_FEATURES & ALBUMS)
 # ==========================================
-# [수정됨] NameError 방지를 위해 GENRE_MAP을 위로 올림
-GENRE_MAP = {
-    "Rock / Alternative / Indie": ["indie", "alternative", "rock", "power pop", "jangle", "dream"],
-    "Punk / Post-Punk / New Wave": ["punk", "post-punk", "new wave", "no wave", "goth", "synth"],
-    "Experimental / Noise / Avant-garde": ["experimental", "noise", "avant"],
-    "Pop / Singer-Songwriter / Misc": ["pop", "folk", "soft"],
-}
-
-# [수정됨] GENRE_MAP이 정의된 후 실행
-ALL_GENRE_KEYWORDS = sorted(list(set(kw for sublist in GENRE_MAP.values() for kw in sublist)))
-
-# [수정됨] SyntaxError 해결: 괄호 {}로 제대로 닫음
 MANUAL_FEATURES = {
     "Blue Rev": {"tempo": 4, "energy": 4, "brightness": 2, "length": 2},
     "Palomine": {"tempo": 2, "energy": 2, "brightness": 2, "length": 3},
@@ -212,7 +265,6 @@ MANUAL_FEATURES = {
     "Echoes": {"tempo": 4, "energy": 4, "brightness": 2, "length": 3},
 }
 
-# [수정됨] SyntaxError 해결: 괄호 []로 제대로 닫음
 ALBUMS = [
     {"artist": "Alvvays", "title": "Blue Rev"},
     {"artist": "Bettie Serveert", "title": "Palomine"},
@@ -289,7 +341,7 @@ ALBUMS = [
     {"artist": "The Slits", "title": "Cut"},
     {"artist": "The Birthday Party", "title": "Prayers on Fire"},
     {"artist": "New York Dolls", "title": "New York Dolls"},
-    {"artist": "Something/Anything?", "title": "Something/Anything?"},
+    {"artist": "Todd Rundgren", "title": "Something/Anything?"},
     {"artist": "Big Star", "title": "#1 Record"},
     {"artist": "The Sundays", "title": "Static & Silence"},
     {"artist": "The Boo Radleys", "title": "Giant Steps"},
@@ -337,8 +389,21 @@ ALBUMS = [
     {"artist": "The Rapture", "title": "Echoes"},
 ]
 
+
+ATTRS = ["tempo", "energy", "brightness"]
+GENRE_MAP = {
+    "Rock / Alternative / Indie": ["indie", "alternative", "rock", "power pop", "jangle", "dream"],
+    "Punk / Post-Punk / New Wave": ["punk", "post-punk", "new wave", "no wave", "goth", "synth"],
+    "Experimental / Noise / Avant-garde": ["experimental", "noise", "avant"],
+    "Pop / Singer-Songwriter / Misc": ["pop", "folk", "soft"],
+}
+
+# 모든 장르 키워드 추출 (사용자 추가 앨범용)
+ALL_GENRE_KEYWORDS = sorted(list(set(kw for sublist in GENRE_MAP.values() for kw in sublist)))
+
+
 # ==========================================
-# 3. 헬퍼 함수
+# 3. 헬퍼 함수 (데이터 관리, API 호출 등)
 # ==========================================
 @st.cache_data
 def load_custom_albums():
@@ -364,6 +429,8 @@ def get_spotify_client():
     except Exception:
         return None
 
+# !!! 병렬 처리 시 데드락 방지를 위해 캐시 제거 !!!
+# @st.cache_data 
 def get_musicbrainz_genres(artist, title):
     def norm(s): return s.lower().strip() if isinstance(s, str) else ""
     target_title, target_artist = norm(title), norm(artist)
@@ -404,6 +471,7 @@ def get_musicbrainz_genres(artist, title):
         return []
     except Exception: return []
 
+
 def get_album_data(sp, album_info):
     spotify_url, image_url = "https://open.spotify.com/", "https://via.placeholder.com/150"
     try:
@@ -419,99 +487,8 @@ def get_album_data(sp, album_info):
         return {"artist": album_info['artist'], "title": album_info['title'], "spotify_url": spotify_url, "image_url": image_url, "genres": mb_genres, **data}
     return None
 
-def get_gemini_model(api_key):
-    """사용 가능한 Gemini 모델을 자동으로 찾아 반환"""
-    try:
-        genai.configure(api_key=api_key)
-        target_model = 'gemini-1.5-flash'
-        try:
-            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            if available_models:
-                if 'models/gemini-1.5-flash' in available_models: target_model = 'models/gemini-1.5-flash'
-                elif 'models/gemini-pro' in available_models: target_model = 'models/gemini-pro'
-                else: target_model = available_models[0]
-        except: pass
-        return genai.GenerativeModel(target_model)
-    except:
-        return None
-
-def call_gemini_recommendation(api_key, mood_profile, sp):
-    """제미나이 API: 음악 추천"""
-    try:
-        model = get_gemini_model(api_key)
-        if not model: return []
-        
-        prompt = f"""
-        너는 최고의 음악 추천 DJ야.
-        사용자의 기분: 템포 {mood_profile['tempo']}/5, 에너지 {mood_profile['energy']}/5, 분위기 {mood_profile['brightness']}/5.
-        
-        이 기분에 딱 어울리는 노래 3곡을 추천해줘.
-        [중요] 노래 제목과 가수 이름은 Spotify 공식 명칭과 최대한 똑같이 써줘. 부제는 빼줘.
-        
-        반드시 아래 JSON 형식으로만 답해줘:
-        [
-            {{"artist": "가수이름", "title": "노래제목", "reason": "한줄 추천 이유"}}
-        ]
-        """
-        response = model.generate_content(prompt)
-        text_resp = response.text.replace("```json", "").replace("```", "").strip()
-        recommendations = json.loads(text_resp)
-        
-        final_recs = []
-        for rec in recommendations:
-            spotify_url = "https://open.spotify.com/"
-            image_url = "https://via.placeholder.com/150"
-            try:
-                # 1차 시도
-                query = f"artist:{rec['artist']} track:{rec['title']}"
-                results = sp.search(q=query, type='track', limit=1)
-                # 2차 시도
-                if not results['tracks']['items']:
-                    query_broad = f"{rec['artist']} {rec['title']}"
-                    results = sp.search(q=query_broad, type='track', limit=1)
-
-                if results['tracks']['items']:
-                    item = results['tracks']['items'][0]
-                    spotify_url = item['external_urls']['spotify']
-                    if item['album']['images']: image_url = item['album']['images'][0]['url']
-            except: pass
-            
-            final_recs.append({
-                "artist": rec['artist'], "title": rec['title'],
-                "reason": rec['reason'], "spotify_url": spotify_url, "image_url": image_url
-            })
-        return final_recs
-    except Exception as e:
-        print(f"[Gemini Rec Error] {e}")
-        return []
-
-def generate_ai_content(api_key, content_type):
-    """제미나이 API: 실시간 퀴즈/상식 생성"""
-    try:
-        model = get_gemini_model(api_key)
-        if not model: return None
-
-        if content_type == "trivia":
-            prompt = "음악에 관한 짧고 흥미로운 상식(TMI)을 딱 하나만 한국어로 말해줘. 예: '비틀즈의 예스터데이는 꿈속에서 작곡되었습니다.' 처럼 한 문장으로."
-            response = model.generate_content(prompt)
-            return response.text.strip()
-        
-        elif content_type == "quiz":
-            prompt = """
-            음악 관련 퀴즈를 하나만 내줘. 
-            반드시 아래 JSON 포맷으로만 답변해줘:
-            {"question": "문제 내용", "answer": "정답 단어"}
-            """
-            response = model.generate_content(prompt)
-            text_resp = response.text.replace("```json", "").replace("```", "").strip()
-            return json.loads(text_resp)
-            
-    except Exception as e:
-        print(f"[Gemini Content Error] {e}")
-        return None
-
 # ==========================================
-# 4. 페이지 렌더링 함수 (메인)
+# 4. 페이지 렌더링 함수
 # ==========================================
 
 def render_main_page(sp):
@@ -519,6 +496,7 @@ def render_main_page(sp):
     st.write("당신의 현재 기분에 딱 맞는 앨범을 골라드립니다!")
     st.divider()
 
+    # --- 사이드바 ---
     st.sidebar.header("🎚️ 기분 설정")
     tempo = st.sidebar.select_slider("Q1. 템포", options=[1, 2, 3, 4, 5], format_func=lambda x: ["매우 느림", "느림", "적당함", "빠름", "매우 빠름"][x-1])
     energy = st.sidebar.select_slider("Q2. 에너지", options=[1, 2, 3, 4, 5], format_func=lambda x: ["잔잔함", "차분함", "중간", "신남", "강렬함"][x-1])
@@ -527,137 +505,98 @@ def render_main_page(sp):
     genre_category = st.sidebar.selectbox("Q5. 장르", ["전체"] + list(GENRE_MAP.keys()))
     
     st.divider()
+    # 대기 모드 선택 (상식 vs 퀴즈)
     waiting_mode = st.sidebar.radio(
         "⏳ 기다리는 동안 무엇을 할까요?",
         ["음악 상식 읽기", "음악 퀴즈 풀기"],
-        index=0
+        index=0,
+        help="데이터 분석 중 지루하지 않게 즐길 거리를 선택하세요."
     )
 
+    # --- 추천 로직 ---
     if st.sidebar.button("🎵 앨범 추천받기", type="primary"):
         if not sp:
-            st.error("스포티파이 인증에 실패했습니다."); return
+            st.error("스포티파이 인증에 실패했습니다. 페이지를 새로고침하거나 캐시를 삭제해보세요."); return
         
         user_state = {"tempo": tempo, "energy": energy, "brightness": brightness, "length": length}
         
+        # 진행률 표시줄과 텍스트 공간 생성
         progress_text = st.empty()
-        percent_text = st.empty()
+        percent_text = st.empty()  # 퍼센트 표시용 텍스트 공간
         progress_bar = st.progress(0)
         
+        # 1) 데이터 수집 (병렬 처리 적용)
         all_albums = []
-        gemini_results = []
         custom_albums = load_custom_albums()
-        total_items = len(ALBUMS) + len(custom_albums) 
+        total_items = len(ALBUMS) + len(custom_albums)
         completed_items = 0
 
+        # 병렬 처리를 위한 작업자(Worker) 수 설정
         MAX_WORKERS = 8 
         
-        # 초기 퀴즈/상식 설정
+        # 퀴즈 모드용 변수
         current_quiz = random.choice(QUIZ_LIST)
-        current_trivia = random.choice(TRIVIA_LIST)
-        quiz_start_time = time.time()
-        trivia_start_time = time.time()
+        quiz_start_time = time.time() # 퀴즈 시작 시간 기록
+        quiz_state = "question" # question (5초) -> answer (3초)
         
-        # [핵심] AI 콘텐츠 버퍼 (미리 만들어두는 공간)
-        next_content_buffer = None 
+        # 상식 모드용 변수
+        current_trivia = random.choice(TRIVIA_LIST)
+        trivia_start_time = time.time()
 
-        with st.spinner("데이터 분석 및 AI DJ와 통신 중..."):
+        with st.spinner("데이터를 분석하고 있습니다..."):
             with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-                # 1. 앨범 수집용 Future 관리
-                main_futures = set()
+                # 작업 예약
+                future_to_album = {executor.submit(get_album_data, sp, album): album for album in ALBUMS}
                 
-                # 2. 백그라운드 콘텐츠용 Future (별도 관리)
-                bg_content_future = None
-
-                # --- 작업 제출 ---
-                # A. AI 추천 (최우선)
-                has_api_key = gemini_api_key and "여기에" not in gemini_api_key
-                if has_api_key:
-                    f = executor.submit(call_gemini_recommendation, gemini_api_key, user_state, sp)
-                    main_futures.add(f)
-                    # Future 객체에 타입 태깅 (꼼수)
-                    f.tag = "ai_rec"
-                    
-                    # B. 첫 번째 AI 콘텐츠 생성 요청 (백그라운드)
-                    ctype = "trivia" if waiting_mode == "음악 상식 읽기" else "quiz"
-                    bg_content_future = executor.submit(generate_ai_content, gemini_api_key, ctype)
-
-                # C. 로컬 앨범 작업
-                for album in ALBUMS:
-                    f = executor.submit(get_album_data, sp, album)
-                    f.tag = "local"
-                    main_futures.add(f)
+                # Non-blocking 폴링 방식 사용
+                pending_futures = set(future_to_album.keys())
                 
-                # --- 메인 루프 (앨범 수집이 끝날 때까지) ---
-                while main_futures:
-                    # 0.1초마다 체크 (UI 갱신을 위해)
-                    # main_futures와 bg_content_future를 모두 감시
-                    wait_targets = main_futures.copy()
-                    if bg_content_future:
-                        wait_targets.add(bg_content_future)
-                        
-                    done, _ = concurrent.futures.wait(wait_targets, timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED)
+                while pending_futures:
+                    # 0.1초 동안 완료된 작업이 있는지 확인
+                    done, _ = concurrent.futures.wait(pending_futures, timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED)
                     
+                    # 완료된 작업 처리
                     for future in done:
-                        # 1. 메인 작업(앨범/추천) 완료 처리
-                        if future in main_futures:
-                            try:
-                                result = future.result()
-                                if future.tag == "local" and result:
-                                    all_albums.append(result)
-                                    completed_items += 1
-                                elif future.tag == "ai_rec" and result:
-                                    gemini_results = result
-                            except: pass
-                            main_futures.remove(future)
+                        try:
+                            data = future.result()
+                            if data: all_albums.append(data)
+                        except Exception: pass
                         
-                        # 2. 백그라운드 AI 콘텐츠 완료 처리
-                        elif future == bg_content_future:
-                            try:
-                                result = future.result()
-                                if result:
-                                    next_content_buffer = result # 버퍼에 저장
-                            except: pass
-                            # 즉시 다음 콘텐츠 생성 요청 (무한 리필)
-                            ctype = "trivia" if waiting_mode == "음악 상식 읽기" else "quiz"
-                            bg_content_future = executor.submit(generate_ai_content, gemini_api_key, ctype)
+                        completed_items += 1
+                        progress = min(completed_items / total_items, 1.0)
+                        
+                        # 퍼센트 텍스트 및 프로그레스 바 업데이트
+                        percent_text.text(f"진행률 {int(progress * 100)}%")
+                        progress_bar.progress(progress)
+                        
+                        pending_futures.remove(future)
 
-                    # 진행률 업데이트
-                    progress = min(completed_items / total_items, 1.0)
-                    percent_text.text(f"진행률 {int(progress * 100)}%")
-                    progress_bar.progress(progress)
-
-                    # === 대기 화면 콘텐츠 UI 업데이트 ===
+                    # === 대기 화면 콘텐츠 업데이트 로직 ===
                     current_time = time.time()
                     
                     if waiting_mode == "음악 상식 읽기":
-                        # 10초 경과 시 교체 시도
                         if current_time - trivia_start_time > 10:
-                            if next_content_buffer: # AI가 만들어둔 게 있으면 사용
-                                current_trivia = next_content_buffer
-                                next_content_buffer = None # 사용했으니 비움
-                            else: # 없으면 정적 리스트 사용
-                                current_trivia = random.choice(TRIVIA_LIST)
+                            current_trivia = random.choice(TRIVIA_LIST)
                             trivia_start_time = current_time
                         progress_text.info(f"💡 알고 계셨나요?\n\n{current_trivia}")
                         
                     elif waiting_mode == "음악 퀴즈 풀기":
                         elapsed_time = current_time - quiz_start_time
+                        
                         if elapsed_time < 5:
                             countdown = 5 - int(elapsed_time)
                             progress_text.warning(f"❓ 퀴즈! (⏳ {countdown}초 후 공개)\n\nQ. {current_quiz[0]}")
-                        elif elapsed_time < 8:
+                            quiz_state = "question"
+                        elif elapsed_time < 8: # 5초 + 3초 = 8초
                             progress_text.success(f"✅ 정답!\n\nA. {current_quiz[1]}")
+                            quiz_state = "answer"
                         else:
-                            # 8초 경과(한 사이클 끝) 시 교체 시도
-                            if next_content_buffer and isinstance(next_content_buffer, dict):
-                                current_quiz = (next_content_buffer['question'], next_content_buffer['answer'])
-                                next_content_buffer = None
-                            else:
-                                current_quiz = random.choice(QUIZ_LIST)
+                            current_quiz = random.choice(QUIZ_LIST)
                             quiz_start_time = current_time
+                            quiz_state = "question"
                             progress_text.warning(f"❓ 퀴즈! (⏳ 5초 후 공개)\n\nQ. {current_quiz[0]}")
 
-            # 사용자 추가 앨범 (순차 처리)
+            # 사용자 추가 앨범 처리 (병렬 처리 미적용)
             for album in custom_albums:
                 spotify_url, image_url = "https://open.spotify.com/", "https://via.placeholder.com/150"
                 try:
@@ -668,14 +607,17 @@ def render_main_page(sp):
                         spotify_url, image_url = item['external_urls']['spotify'], item['images'][0]['url'] if item['images'] else image_url
                 except: pass
                 all_albums.append({**album, **album['features'], "spotify_url": spotify_url, "image_url": image_url})
+                
                 completed_items += 1
                 progress = min(completed_items / total_items, 1.0)
                 percent_text.text(f"진행률 {int(progress * 100)}%")
                 progress_bar.progress(progress)
 
-        progress_text.empty(); percent_text.empty(); progress_bar.empty()
+        progress_text.empty() # 텍스트 지우기
+        percent_text.empty()  # 퍼센트 텍스트 지우기
+        progress_bar.empty()  # 바 지우기
 
-        # 결과 1: 로컬 추천
+        # 2) 점수 계산 + 필터링 (기존 로직)
         scored = []
         for data in all_albums:
             if genre_category != "전체":
@@ -689,10 +631,9 @@ def render_main_page(sp):
         
         scored.sort(key=lambda x: (-x[0], abs(x[1]["length"] - length)))
 
+        # --- 결과 표시 ---
         st.success("분석 완료! 추천 앨범입니다.")
         st.divider()
-        
-        st.subheader("💿 알고리즘 추천 (DB 기반)")
         if not scored:
             st.warning("조건에 맞는 앨범이 없습니다. 조건을 넓혀보세요!")
         else:
@@ -700,31 +641,11 @@ def render_main_page(sp):
                 col1, col2 = st.columns([1, 2])
                 with col1: st.image(album["image_url"], width=150)
                 with col2:
-                    st.write(f"**{i}위. {album['title']}**")
+                    st.subheader(f"{i}위. {album['title']}")
                     st.text(f"아티스트: {album['artist']}")
                     if album.get("genres"): st.caption("Genres: " + ", ".join(album["genres"][:5]))
                     st.caption(f"적합도 점수: {score}점")
                     st.link_button("Spotify에서 듣기 ▶", album["spotify_url"])
-        
-        st.divider()
-
-        # 결과 2: AI 추천
-        st.subheader("🤖 AI의 특별 추천 (Generative AI)")
-        
-        if not gemini_results:
-            if "여기에" in gemini_api_key:
-                 st.info("💡 코드 상단의 'gemini_api_key' 변수에 키를 입력하면 AI 추천을 받을 수 있습니다.")
-            else:
-                 st.warning("AI가 추천곡을 찾지 못했습니다. (네트워크 오류 또는 검색 실패)")
-        else:
-            for i, song in enumerate(gemini_results, start=1):
-                col1, col2 = st.columns([1, 2])
-                with col1: st.image(song["image_url"], width=150)
-                with col2:
-                    st.write(f"**AI Pick {i}. {song['title']}**")
-                    st.text(f"아티스트: {song['artist']}")
-                    st.info(f"💡 추천 이유: {song['reason']}")
-                    st.link_button("Spotify에서 듣기 ▶", song["spotify_url"])
                 st.divider()
 
     st.divider()
@@ -742,10 +663,10 @@ def render_list_page():
     
     custom_albums = load_custom_albums()
     if not custom_albums:
-        st.info("아직 추가된 앨범이 없습니다.")
+        st.info("아직 추가된 앨범이 없습니다. '새 앨범 추가' 버튼을 눌러 추가해보세요.")
     else:
         st.subheader(f"총 {len(custom_albums)}개의 앨범이 등록되어 있습니다.")
-        for i, album in enumerate(reversed(custom_albums)): 
+        for i, album in enumerate(reversed(custom_albums)): # 최신순으로
             idx = len(custom_albums) - 1 - i
             col1, col2, col3 = st.columns([3, 4, 1])
             with col1: st.text(album['artist'])
@@ -766,57 +687,107 @@ def render_add_page(sp):
         st.subheader("앨범 정보")
         artist = st.text_input("아티스트*")
         
+        # Initialize session state for album titles if not present
         if 'mb_found_album_titles' not in st.session_state:
             st.session_state.mb_found_album_titles = []
         if 'mb_search_artist' not in st.session_state:
             st.session_state.mb_search_artist = ""
 
+        # Button to trigger album search
         if st.form_submit_button("이 아티스트의 앨범 검색"): 
             if artist:
                 with st.spinner(f"'{artist}'의 앨범을 MusicBrainz에서 검색 중..."):
                     try:
                         releases = musicbrainzngs.search_releases(artist=artist, limit=50).get("release-list", [])
                         album_titles = sorted(list(set(r["title"] for r in releases if "title" in r)))
-                        st.session_state.mb_found_album_titles = album_titles
-                        st.session_state.mb_search_artist = artist
-                        if album_titles: st.success(f"앨범 {len(album_titles)}개를 찾았습니다.")
-                        else: st.error("앨범을 찾을 수 없습니다.")
-                    except: st.error("검색 중 오류 발생")
-            else: st.error("아티스트 이름을 입력해주세요.")
+                        
+                        if album_titles:
+                            st.session_state.mb_found_album_titles = album_titles
+                            st.session_state.mb_search_artist = artist
+                            st.success(f"'{artist}'의 앨범 {len(album_titles)}개를 찾았습니다.")
+                        else:
+                            st.session_state.mb_found_album_titles = []
+                            st.session_state.mb_search_artist = ""
+                            st.error(f"'{artist}'의 앨범을 MusicBrainz에서 찾을 수 없습니다.")
+                    except Exception as e:
+                        st.session_state.mb_found_album_titles = []
+                        st.session_state.mb_search_artist = ""
+                        st.error(f"앨범 검색 중 오류 발생: {e}")
+            else:
+                st.error("아티스트 이름을 입력해주세요.")
         
         album_title_options = st.session_state.mb_found_album_titles
+        
+        # Conditional rendering for album title input
         if artist and st.session_state.mb_search_artist == artist and album_title_options:
             title = st.selectbox("앨범 제목 선택*", options=album_title_options)
         else:
             title = st.text_input("앨범 제목* (아티스트 검색 후 선택)", disabled=True)
+            if not artist:
+                st.warning("먼저 아티스트 이름을 입력하고 '이 아티스트의 앨범 검색' 버튼을 눌러주세요.")
+            elif st.session_state.mb_search_artist != artist:
+                st.warning("아티스트 이름이 변경되었습니다. 다시 '이 아티스트의 앨범 검색' 버튼을 눌러주세요.")
+            elif not album_title_options:
+                st.warning("해당 아티스트의 앨범을 찾을 수 없습니다. 다른 아티스트를 시도하거나 직접 입력하세요.")
+                title = st.text_input("앨범 제목 직접 입력*", help="검색으로 찾지 못한 경우 직접 입력하세요.")
 
-        genre_selection = st.multiselect("장르 선택*", options=ALL_GENRE_KEYWORDS)
+        genre_selection = st.multiselect(
+            "장르 선택 (다중 선택 가능)*",
+            options=ALL_GENRE_KEYWORDS,
+            help="앨범의 장르를 선택해주세요."
+        )
         
         st.subheader("음악적 특징*")
         col1, col2 = st.columns(2)
         with col1:
-            tempo = st.select_slider("템포", options=[1, 2, 3, 4, 5])
-            energy = st.select_slider("에너지", options=[1, 2, 3, 4, 5])
+            tempo = st.select_slider("템포", options=[1, 2, 3, 4, 5], format_func=lambda x: ["매우 느림", "느림", "적당함", "빠름", "매우 빠름"][x-1])
+            energy = st.select_slider("에너지", options=[1, 2, 3, 4, 5], format_func=lambda x: ["잔잔함", "차분함", "중간", "신남", "강렬함"][x-1])
         with col2:
-            brightness = st.select_slider("분위기", options=[1, 2, 3, 4, 5])
-            length = st.radio("감상 시간", options=[1, 2, 3, 4, 5], horizontal=True)
+            brightness = st.select_slider("분위기", options=[1, 2, 3, 4, 5], format_func=lambda x: ["어두움", "조금 어두움", "중간", "밝음", "아주 밝음"][x-1])
+            length = st.radio("감상 시간", options=[1, 2, 3, 4, 5], format_func=lambda x: ["30분 이하", "45분 이하", "1시간 이하", "2시간 이하", "2시간 이상"][x-1], horizontal=True)
 
-        if st.form_submit_button("저장하기"):
+        submitted = st.form_submit_button("저장하기")
+        if submitted:
             if not all([artist, title, genre_selection]):
-                st.error("모든 필드를 채워주세요."); return
+                st.error("'*' 표시가 된 모든 필드를 채워주세요."); return
+
+            validation_passed = True
+
+            is_title_from_selectbox = (artist and 
+                                       st.session_state.mb_search_artist == artist and 
+                                       st.session_state.mb_found_album_titles and
+                                       title in st.session_state.mb_found_album_titles)
             
-            new_album = {
-                "artist": artist, "title": title,
-                "features": {"tempo": tempo, "energy": energy, "brightness": brightness, "length": length},
-                "genres": genre_selection
-            }
-            custom_albums = load_custom_albums()
-            custom_albums.append(new_album)
-            save_custom_albums(custom_albums)
-            st.success(f"✅ '{title}' 추가 완료!")
-            time.sleep(1)
-            st.session_state.page = 'list_albums'
-            st.rerun()
+            if not is_title_from_selectbox:
+                with st.spinner("MusicBrainz API로 앨범 정보를 확인하는 중..."):
+                    mb_genres_for_validation = get_musicbrainz_genres(artist, title)
+                
+                if not mb_genres_for_validation:
+                    with st.spinner("MusicBrainz에서 아티스트 정보를 확인하는 중..."):
+                        artist_results = musicbrainzngs.search_artists(artist=artist, limit=1)
+                    
+                    if artist_results.get("artist-list"):
+                        st.error("MusicBrainz에서 해당 아티스트는 찾았지만, 앨범 제목이 정확하지 않은 것 같습니다. 앨범 제목의 철자를 확인해주세요.")
+                    else:
+                        st.error("MusicBrainz에서 해당 아티스트를 찾을 수 없습니다. 아티스트 이름의 철자를 확인해주세요.")
+                    validation_passed = False
+            
+            if validation_passed:
+                new_album = {
+                    "artist": artist, "title": title,
+                    "features": {"tempo": tempo, "energy": energy, "brightness": brightness, "length": length},
+                    "genres": genre_selection
+                }
+                custom_albums = load_custom_albums()
+                if any(a['title'] == title and a['artist'] == artist for a in custom_albums):
+                    st.warning("이미 등록된 앨범입니다.")
+                else:
+                    custom_albums.append(new_album)
+                    save_custom_albums(custom_albums)
+                    st.success(f"✅ '{title}' 앨범을 성공적으로 추가했습니다!")
+                    time.sleep(1)
+                    st.session_state.page = 'list_albums'
+                    st.rerun()
 
 # ==========================================
 # 5. 메인 앱 실행 로직
