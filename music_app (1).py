@@ -40,7 +40,7 @@ client_id = "490b45532df54ef0847e810393d06a51"
 client_secret = "ab2b99ec8c2a4e10a7192809b3bb539c"
 
 # Gemini API Key (여기에 복사한 키를 붙여넣으세요)
-gemini_api_key = "AIzaSyCnRxtO5H6n7uYdUQvZ3cExfcrIe1SD0ZA" 
+gemini_api_key = "AIzaSyDtJdB1uY7cCxfMtaVkjahQRCqK9KS5XI0" 
 # -------------------------------------------------------------------------
 
 REDIRECT_URI = "http://127.0.0.1:8888"
